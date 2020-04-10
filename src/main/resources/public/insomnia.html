@@ -1,0 +1,196 @@
+<html>
+<head>
+    <title>Insomnia WebSocket</title>
+
+    <script src="./js/sockjs-0.3.4.js"></script>
+    <script src="./js/stomp.js"></script>
+
+    <script type="text/javascript">
+
+        var stompClient = null;
+
+        function setConnected(connected) {
+
+            document.getElementById('connect').disabled = connected;
+            document.getElementById('disconnect').disabled = !connected;
+            document.getElementById('conversationDiv').style.visibility = connected ? 'visible' : 'hidden';
+            document.getElementById('response').innerHTML = '';
+        }
+
+        function connect() {
+
+            var socket = new SockJS('/chat');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function(frame) {
+
+                setConnected(true);
+                console.log('Connected: ' + frame);
+                stompClient.subscribe('/topic/messages', function(messageOutput) {
+
+                    console.log(messageOutput)
+                    showMessageOutput("response: " + messageOutput.body);
+                    var XmlNode = new DOMParser().parseFromString(messageOutput.body, 'text/xml');
+                    var recs = xmlToJson(XmlNode).recommendation;
+
+
+                    var response = document.getElementById('response');
+                    var p = document.createElement('p');
+                    p.style.wordWrap = 'break-word';
+                    p.appendChild(document.createTextNode(recs.rec1));
+                    response.appendChild(p);
+
+                    response = document.getElementById('response');
+                    p = document.createElement('p');
+                    p.style.wordWrap = 'break-word';
+                    p.appendChild(document.createTextNode(recs.rec2));
+                    response.appendChild(p);
+
+                    response = document.getElementById('response');
+                    p = document.createElement('p');
+                    p.style.wordWrap = 'break-word';
+                    p.appendChild(document.createTextNode(recs.rec3));
+                    response.appendChild(p);
+                });
+            });
+        }
+
+        function disconnect() {
+
+            if(stompClient != null) {
+                stompClient.disconnect();
+            }
+
+            setConnected(false);
+            console.log("Disconnected");
+        }
+
+        function sendMessage() {
+
+            var gender= document.getElementById('gender').value;
+            var age = document.getElementById('age').value;
+            var profession = document.getElementById('profession').value;
+            var months = document.getElementById('months').value;
+            showMessageOutput("request: " + JSON.stringify(
+                { 'patient':{
+                        'gender':gender,
+                        'age':age,
+                        'profession':profession,
+                        'period in months':months
+                    }}
+                ));
+            stompClient.send("/app/chat", {}, JSON.stringify(
+                { 'patient':{
+                        'gender':gender,
+                        'age':age,
+                        'profession':profession,
+                        'period in months':months
+                    }}
+            ));
+        }
+
+        function showMessageOutput(messageOutput) {
+
+
+            console.log(messageOutput)
+            var response = document.getElementById('response');
+            var p = document.createElement('p');
+            p.style.wordWrap = 'break-word';
+            p.appendChild(document.createTextNode(messageOutput));
+            response.appendChild(p);
+        }
+
+        function xmlToJson(xml) {
+            // Create the return object
+            var obj = {};
+
+            if (xml.nodeType == 1) {
+                // element
+                // do attributes
+                if (xml.attributes.length > 0) {
+                    obj["@attributes"] = {};
+                    for (var j = 0; j < xml.attributes.length; j++) {
+                        var attribute = xml.attributes.item(j);
+                        obj["@attributes"][attribute.nodeName] = attribute.nodeValue;
+                    }
+                }
+            } else if (xml.nodeType == 3) {
+                // text
+                obj = xml.nodeValue;
+            }
+
+            // do children
+            // If all text nodes inside, get concatenated text from them.
+            var textNodes = [].slice.call(xml.childNodes).filter(function(node) {
+                return node.nodeType === 3;
+            });
+            if (xml.hasChildNodes() && xml.childNodes.length === textNodes.length) {
+                obj = [].slice.call(xml.childNodes).reduce(function(text, node) {
+                    return text + node.nodeValue;
+                }, "");
+            } else if (xml.hasChildNodes()) {
+                for (var i = 0; i < xml.childNodes.length; i++) {
+                    var item = xml.childNodes.item(i);
+                    var nodeName = item.nodeName;
+                    if (typeof obj[nodeName] == "undefined") {
+                        obj[nodeName] = xmlToJson(item);
+                    } else {
+                        if (typeof obj[nodeName].push == "undefined") {
+                            var old = obj[nodeName];
+                            obj[nodeName] = [];
+                            obj[nodeName].push(old);
+                        }
+                        obj[nodeName].push(xmlToJson(item));
+                    }
+                }
+            }
+            return obj;
+        }
+
+    </script>
+
+</head>
+
+<body onload="disconnect()">
+
+<div>
+
+
+    <div>
+        <input type="text" id="from" placeholder="Choose a nickname"/>
+    </div>
+    <br />
+    <div>
+        <button id="connect" onclick="connect();">Connect</button>
+        <button id="disconnect" disabled="disabled" onclick="disconnect();">Disconnect</button>
+    </div>
+    <br />
+    <div id="conversationDiv">
+
+        <form>
+
+            <div>
+                <input type="text" id="gender" placeholder="gender"/>
+
+            </div>
+            <br />
+            <div>
+                <input type="text" id="age" placeholder="age"/>
+            </div>
+            <br />
+            <div>
+                <input type="text" id="profession" placeholder="profession"/>
+            </div>
+            <br />
+            <div>
+                <input type="text" id="months" placeholder="period in months"/>
+            </div>
+
+        </form>
+        <button id="sendMessage" onclick="sendMessage();">Send</button>
+        <p id="response"></p>
+    </div>
+</div>
+
+</body>
+</html>
